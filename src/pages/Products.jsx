@@ -49,6 +49,9 @@ export default function Products() {
     { key: 'price', header: t('col.price'), align: 'right', render: (p) => <b className="num big-cell">{inr(p.a.price)}</b> },
     { key: 'floor', header: t('col.floor'), align: 'right', render: (p) => <span className="num big-cell red">{inr(p.a.floor)}</span> },
     { key: 'e', header: t('col.profit'), align: 'right', render: (p) => <b className={`num big-cell ${p.a.contribution < 0 ? 'neg' : 'pos'}`}>{p.a.contribution == null ? '—' : inrSigned(p.a.contribution)}</b> },
+    { key: 'ads', header: t('col.ads'), align: 'right', render: (p) => (p.adsBudget > 0
+      ? <><b className="num">{inr(p.adsBudget)}</b><div className="tiny muted">{t('col.adsSub', { per: inr(Math.round(p.a.adsPerOrder ?? 0)) })}</div></>
+      : <span className="tiny muted">{t('col.adsNone', { avg: inr(CATEGORIES[p.categoryId].ads) })}</span>) },
     { key: 'band', header: t('col.market'), render: (p) => {
       const pos = POS[p.a.position];
       return (

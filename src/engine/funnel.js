@@ -21,6 +21,7 @@
  */
 import { typicalOrders, bucketFor, bucketLabel, top } from './demand.js';
 import { contributionAt } from './calculator.js';
+import { adsUplift, savedBudget } from './adsUplift.js';
 
 const mid = (r) => (r[0] + r[1]) / 2;
 export const typicalViews = (b) => mid(b.views);
@@ -71,11 +72,29 @@ export function projectTo(baseline, toBucket) {
 /**
  * One price, fully worked: the range it falls in, views / clicks / orders a month, orders per 100 views, profit per
  * shipped order and TOTAL profit a month (profit per order × orders — the number that matters in a volume game).
+ *
+ * ADS. When the seller has saved a monthly ads budget for the product (Ads Planner / Price Coach step 5), the ad
+ * views, clicks and orders that budget buys at this price are added (adsUplift.js), and the budget replaces the
+ * category's ₹ per order ads average: profit per order = profit without ads − budget ÷ orders, and
+ * total a month = orders × profit without ads − budget.
  */
 export function funnelAt({ product, buckets, baseline, price, inputs }) {
   const bucket = bucketNear(price, buckets);
   if (price == null || !bucket) return null;
   const p = projectTo(baseline, bucket);
+  const S = savedBudget(product);
+  if (S) {
+    const u = adsUplift({ categoryId: product.categoryId, bucket, ctr: p.ctr, opv: p.opv, spend: S });
+    const v = p.views + u.adViews, cl = p.clicks + u.adClicks, o = p.orders + u.adOrders;
+    const E0 = inputs ? contributionAt({ ...inputs, advertisingCost: 0 }, price) : null;
+    return {
+      price, bucket, label: bucketLabel(bucket), source: p.source,
+      views: roundViews(v), clicks: roundClicks(cl), orders: roundOrders(o),
+      ctr: cl / v, opv: o / v, ctrPct: (cl / v) * 100, opv100: (o / v) * 100,
+      profit: E0 == null ? null : E0 - S / o, monthlyProfit: E0 == null ? null : round50(E0 * o - S),
+      adsBudget: S, adOrders: u.adOrders, organicOrders: p.orders,
+    };
+  }
   const views = roundViews(p.views), clicks = roundClicks(p.clicks), orders = roundOrders(p.orders);
   const profit = inputs ? contributionAt(inputs, price) : null;
   return {

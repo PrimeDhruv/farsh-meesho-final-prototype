@@ -2,6 +2,9 @@ import { ASSUMPTIONS } from '../data/assumptions.js';
 import { CATEGORIES } from '../data/categories.js';
 import { blendedRto } from './floor.js';
 import { applyLevers } from './levers.js';
+import { baselineFor, bucketNear, projectTo } from './funnel.js';
+import { adsUplift, savedBudget } from './adsUplift.js';
+import { demandFor } from '../data/demandBuckets.js';
 
 /**
  * Turn a product record into model inputs for floor.js, and record where the
@@ -29,13 +32,31 @@ export function buildModel(product, A = ASSUMPTIONS) {
 }
 
 /**
+ * ₹ of ads each order carries when the seller has saved a monthly ads budget: the budget ÷ every order a month at
+ * the listed price (her own orders + the ones the ads bring). null = no budget or no price: use the category average.
+ */
+export function adsPerOrder(product, price = product.listedPrice) {
+  const S = savedBudget(product);
+  if (!S || price == null) return null;
+  const buckets = demandFor(product.categoryId).buckets;
+  const bucket = bucketNear(price, buckets);
+  if (!bucket) return null;
+  const p = projectTo(baselineFor(product, buckets, price), bucket);
+  const u = adsUplift({ categoryId: product.categoryId, bucket, ctr: p.ctr, opv: p.opv, spend: S });
+  const orders = p.orders + u.adOrders;
+  return orders > 0 ? S / orders : null;
+}
+
+/**
  * Adapter: a product record → flat inputs for calculator.js (the UI-free engine).
  * These are the DEFAULTS shown in Price Coach; the seller can override any of them.
+ * Ads: the category's ₹ per order average, or — once the seller saves a monthly ads budget — that budget per order.
  */
 export function toCalcInputs(product, A = ASSUMPTIONS) {
   const mo = buildModel(product, A);
+  const perOrder = adsPerOrder(product);
   return {
-    productCost: mo.c, packagingCost: mo.packaging, shippingCost: mo.shipping, advertisingCost: mo.ads,
+    productCost: mo.c, packagingCost: mo.packaging, shippingCost: mo.shipping, advertisingCost: perOrder ?? mo.ads,
     gstTds: mo.t, rtoRate: mo.r, rtoHandlingCost: A.rtoHandling, rtoStockLossShare: A.rtoStockLost,
     returnRate: mo.q, returnReverseCost: A.returnReverseLeg, returnUnsellableShare: A.returnUnsellable,
     targetMargin: A.targetContribution, price: product.listedPrice ?? undefined,

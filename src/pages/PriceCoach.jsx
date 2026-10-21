@@ -10,6 +10,7 @@ import { PricePanel } from '../components/seller/PricePanel.jsx';
 import { ExpertPanel } from '../components/seller/ExpertPanel.jsx';
 import { FloorTrend } from '../components/seller/FloorTrend.jsx';
 import { CompetitorSnapshot } from '../components/seller/CompetitorSnapshot.jsx';
+import { AdsStep } from '../components/growth/AdsStep.jsx';
 import { adviceText } from '../components/seller/AdviceCard.jsx';
 import { useProducts } from '../state/ProductsContext.jsx';
 import { useT } from '../i18n/LanguageContext.jsx';
@@ -18,7 +19,7 @@ import { floorHistory } from '../engine/history.js';
 import { toCalcInputs, effectiveInputs } from '../engine/model.js';
 import { inr, inrSigned } from '../lib/format.js';
 
-const STEPS = ['s1', 's2', 's3', 's4', 's5'];
+const STEPS = ['s1', 's2', 's3', 's4', 's5', 's6'];
 
 export default function PriceCoach() {
   const { selected } = useProducts();
@@ -95,6 +96,9 @@ function Coach({ p }) {
   };
   const applyAll = () => { c.fixes.filter((f) => !f.applied).forEach((f) => toggleFix(p.id, f.id)); };
   const usePrice = (price) => { updateProduct(p.id, { listedPrice: price }); notify(t('s4.saved', { price: inr(price), name: p.name })); };
+  const saveAds = (amt) => { updateProduct(p.id, { adsBudget: amt }); notify(t('as.saved', { amt: inr(amt), name: p.name })); };
+  const clearAds = () => { updateProduct(p.id, { adsBudget: null }); notify(t('as.cleared', { name: p.name }), 'amber'); };
+  const usePriceAndAds = (price, amt) => { updateProduct(p.id, { listedPrice: price, adsBudget: amt }); notify(t('as.bothSaved', { price: inr(price), amt: inr(amt), name: p.name })); };
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const insightKey = c.pricePosition ? `s2.insight.${c.pricePosition}` : 's2.insight.none';
   const suggested = advice.target ?? null;
@@ -118,7 +122,7 @@ function Coach({ p }) {
           <div className="verdict" data-testid="verdict">
             <div className="verdict-main">
               <div className="row wrap" style={{ gap: 8 }}><h2 style={{ margin: 0 }}>{p.name}</h2><StatusBadge status={p.a.status} big /></div>
-              <div className="tiny muted">{c.cat.group} · {p.status === 'live' ? t('common.orders', { n: p.orders }) : t('prod.draft')} · {c.usingOwnData ? t('data.own', { n: p.orders }) : t('data.est', { n: p.orders })}</div>
+              <div className="tiny muted">{c.cat.group} · {p.status === 'live' ? t('common.orders', { n: p.orders }) : t('prod.draft')} · {c.usingOwnData ? t('data.own', { n: p.orders }) : t('data.est', { n: p.orders })} · {p.adsBudget > 0 ? <button type="button" className="linklike" onClick={() => go('s5')} data-testid="verdict-ads">{t('as.verdict', { amt: inr(p.adsBudget) })}</button> : t('as.verdictAvg', { avg: inr(c.cat.ads) })}</div>
               <div className="verdict-title" data-testid="verdict-title">{adTitle}</div>
               <ul className="advice-why">{why.map((w, i) => <li key={i}>{w}</li>)}</ul>
               <button type="button" className="btn secondary sm" style={{ marginTop: 10 }} onClick={() => go('s4')} data-testid="jump-price">{t('coach.jump')}<ArrowDown size={14} aria-hidden /></button>
@@ -195,8 +199,13 @@ function Coach({ p }) {
           <PricePanel coach={c} advice={advice} t={t} onUse={usePrice} onApplyAll={applyAll} />
         </Step>
 
-        {/* 5 — after you list */}
-        <Step id="s5" n={5} title={t('s5.title')}>
+        {/* 5 — your ads (the Ads Planner, inside the price flow) */}
+        <Step id="s5" n={5} title={t('as.title')} sub={t('as.sub')}>
+          <AdsStep coach={c} product={p} price={c.price ?? suggested} t={t} onSave={saveAds} onClear={clearAds} onUsePriceAndAds={usePriceAndAds} />
+        </Step>
+
+        {/* 6 — after you list */}
+        <Step id="s6" n={6} title={t('s5.title')}>
           <div className="grid cols-3">
             <div className="after-card">
               <h3>{c.usingOwnData ? t('s5.own', { n: c.ordersSoFar }) : t('s5.estimates')}</h3>

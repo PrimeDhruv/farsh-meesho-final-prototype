@@ -1,4 +1,4 @@
-import { buildModel, effectiveInputs, toCalcInputs, toLeverContext } from './model.js';
+import { buildModel, effectiveInputs, toCalcInputs, toLeverContext, adsPerOrder } from './model.js';
 import { calculate } from './calculator.js';
 import { applyLevers, buildLevers } from './levers.js';
 import { busyZone, zonePosition } from './demand.js';
@@ -58,7 +58,7 @@ export function analyseProduct(product, A = ASSUMPTIONS) {
   const status = classify({ floor, floorPlusMargin, price, contribution, band, zone, bestFloor: best.valid ? best.floor : floor }, A);
 
   return {
-    model, band, zone, demand, floor, floorPlusMargin, price, contribution, bestFloor: best.valid ? best.floor : floor,
+    model, band, zone, demand, floor, adsPerOrder: adsPerOrder(product), floorPlusMargin, price, contribution, bestFloor: best.valid ? best.floor : floor,
     marginPct: priced ? contribution / price : null, position: zonePosition(price, zone),
     fixesApplied: product.fixes ?? [],
     status, isAlert: status === 'below_floor' || status === 'skip',

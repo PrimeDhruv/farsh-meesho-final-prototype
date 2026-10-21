@@ -3,6 +3,7 @@ import { CheckCircle2, PencilLine, Sparkles, AlertTriangle, Check, BadgeCheck } 
 import { assessPrice } from '../../engine/decision.js';
 import { zonePosition } from '../../engine/demand.js';
 import { priceLadder } from '../../engine/funnel.js';
+import { adsCurve, roundSpend } from '../../engine/ads.js';
 import { MoveImpact, moveHeadline } from './MoveImpact.jsx';
 import { inr, inrSigned, num, per100 } from '../../lib/format.js';
 
@@ -211,6 +212,15 @@ function PriceLadder({ coach, t, suggested, preferFixed }) {
     target: c.targetMargin, nowPrice: c.price, suggested,
   }), [c, inputs, calc, suggested]);
   const verdictTone = { loss: 'red', thin: 'amber', safe: 'green' };
+  // the best ads budget at each row's price and the total a month with it (same model as the Ads Planner)
+  const withAds = useMemo(() => Object.fromEntries(ladder.rows.map((r) => {
+    if (r.verdict === 'loss') return [r.lo, null];
+    const cv = adsCurve({ product: c.product, coach: c, price: r.price, inputs });
+    if (!cv?.pays) return [r.lo, { spend: 0, total: null }];
+    const spend = roundSpend(cv.bestSpend);
+    return [r.lo, { spend, total: Math.round(cv.at(spend).totalProfit / 50) * 50 }];
+  })), [ladder, c, inputs]);
+  const bestAds = Object.entries(withAds).filter(([, v]) => v?.total != null).sort((a, b) => b[1].total - a[1].total)[0]?.[0];
   return (
     <div className="ladder" data-testid="ladder">
       <div className="ladder-head">
@@ -223,11 +233,11 @@ function PriceLadder({ coach, t, suggested, preferFixed }) {
           </div>
         )}
       </div>
-      <div className="l-row l-hd" role="row">
-        <span>{t('s2.col.price')}</span><span className="r">{t('fn.views')}</span><span className="r">{t('fn.clicks')}</span><span className="r">{t('fn.opv')}</span><span className="r">{t('fn.total')}</span><span>{t('ld.verdict')}</span>
+      <div className="l-row l7 l-hd" role="row">
+        <span>{t('s2.col.price')}</span><span className="r">{t('fn.views')}</span><span className="r">{t('fn.clicks')}</span><span className="r">{t('fn.opv')}</span><span className="r">{t(c.product.adsBudget > 0 ? 'ld.totalYourAds' : 'fn.total')}</span><span className="r">{t('ld.withAds')}</span><span>{t('ld.verdict')}</span>
       </div>
       {ladder.rows.map((r) => (
-        <div key={r.lo} className={`l-row ${r.isSuggested ? 'sugg' : ''} ${r.isNow ? 'now' : ''} ${r.verdict === 'loss' ? 'loss' : ''}`} data-testid={`ladder-${r.lo}`}>
+        <div key={r.lo} className={`l-row l7 ${r.isSuggested ? 'sugg' : ''} ${r.isNow ? 'now' : ''} ${r.verdict === 'loss' ? 'loss' : ''}`} data-testid={`ladder-${r.lo}`}>
           <span className="l-price">
             <b className="num">{inr(r.price)}</b><span className="tiny muted">{t('ld.inRange', { range: r.label })}</span>
             <span className="l-tags">
@@ -240,6 +250,9 @@ function PriceLadder({ coach, t, suggested, preferFixed }) {
           <span className="l-v r"><b className="num">{num(r.clicks)}</b><span className="tiny muted">{t('fn.clicks')}</span></span>
           <span className="l-v r"><b className="num">{per100(r.opv100)}</b><span className="tiny muted">{t('fn.opv')} · {num(r.orders)} {t('fn.orders')}</span></span>
           <span className="l-v r"><b className={`num ${r.monthlyProfit < 0 ? 'neg' : 'pos'}`}>{inr(r.monthlyProfit)}</b><span className="tiny muted">{inrSigned(r.profit)} {t('term.perOrder')}</span></span>
+          <span className="l-v r" data-testid={`ladder-ads-${r.lo}`}>{withAds[r.lo]?.total != null
+            ? <><b className="num">{inr(withAds[r.lo].total)}</b><span className="tiny muted ld-ads">{t('ld.withAdsSub', { amt: inr(withAds[r.lo].spend) })}</span>{String(r.lo) === bestAds && <span className="badge tone-plum ld-best">{t('ld.bestAds')}</span>}</>
+            : <span className="tiny muted">—</span>}</span>
           <span className="l-verdict"><span className={`badge tone-${verdictTone[r.verdict]}`}>{t(`ld.v.${r.verdict}`)}</span></span>
         </div>
       ))}
